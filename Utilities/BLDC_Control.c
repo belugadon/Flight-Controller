@@ -37,7 +37,7 @@ float ControlZ_Out = 0;
 int pwm_period;
 int ms_pulses2;
 int prescaler2;
-int interrupt_frequency = 50;
+int interrupt_frequency = 10;
 int interrupt_period_int;
 
 
@@ -614,7 +614,7 @@ void TIM2_IRQHandler()
         set_pwm_width(4, pwm_period, duty_cycleB);
         set_pwm_width(3, pwm_period, duty_cycleA);
 
-
+        /*
             USART1_Send('X');
             USART1_Send(':');
             USART1_Send(' ');
@@ -629,8 +629,8 @@ void TIM2_IRQHandler()
             Display_Axis(ZTotal_Rotation);
             USART1_Send('\n');
             USART1_Send('\r');
+ */
 
-        /*
            USART1_Send('x');
         	USART1_Send_Int((int)(XTotal_Rotation));
             USART1_Send('-');
@@ -640,6 +640,6 @@ void TIM2_IRQHandler()
             USART1_Send('z');
             USART1_Send_Int((int)(ZTotal_Rotation));
             USART1_Send('-');
-            */
+
     }
 }

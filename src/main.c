@@ -788,6 +788,8 @@ void USART1_Configuration_Slow(void)
   // USART configuration
   USART_Init(USART1, &USART_InitStructure);
   USART_ITConfig(USART1, USART_IT_RXNE, ENABLE);
+  USART_ITConfig(USART1, USART_IT_TXE, DISABLE);
+  USART_ITConfig(USART1, USART_IT_TC, DISABLE);
 
   NVIC_InitStructure.NVIC_IRQChannel = USART1_IRQn;
   NVIC_InitStructure.NVIC_IRQChannelPreemptionPriority = 0;
@@ -812,6 +814,7 @@ void USART1_Configuration_Fast(void)
   // USART configuration
   USART_Init(USART1, &USART_InitStructure);
   USART_ITConfig(USART1, USART_IT_RXNE, ENABLE);
+
 
   NVIC_InitStructure.NVIC_IRQChannel = USART1_IRQn;
   NVIC_InitStructure.NVIC_IRQChannelPreemptionPriority = 0;
@@ -880,6 +883,8 @@ void USART1_IRQHandler(void)
 	//while((USART1->ISR & USART_FLAG_RXNE) == (uint16_t)RESET);
 	rx = USART_ReceiveData(USART1);
 	}
+	USART_ITConfig(USART1, USART_IT_TXE, DISABLE);
+	USART_ITConfig(USART1, USART_IT_TC, DISABLE);
 }
 void USART3_IRQHandler(void)
 {
