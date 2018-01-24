@@ -11,6 +11,7 @@ float HeadingValue[1] = {0.0f};
 float MagBuffer2[3] = {0.0f};
 float LastHeadingValue;
 uint8_t Crossed = 1;
+int Offset = 1500;
 int offsetA = 7000;
 int offsetB = 7000;
 int offsetC = 7000;
@@ -29,6 +30,9 @@ float Yaw = 0.0;
 float SUMof_XError = 0;
 float SUMof_YError = 0;
 float SUMof_ZError = 0;
+float SUM_of_pitch = 0;
+float SUM_of_roll = 0;
+float SUM_of_yaw = 0;
 float XLastError = 0;
 float YLastError = 0;
 float ControlX_Out = 0;
@@ -223,23 +227,36 @@ void Set_Offset(int* value, float* roll, float* pitch, int* yaw)
 {
 	//chasetheY = (*roll + *pitch);
 	//chasetheX = (*roll + (0 - *pitch));
-	offsetA = 6900 + *value + *roll - *pitch;
-	offsetB = 6900 + *value + *roll + *pitch;
-	offsetC = 6900 + *value - *roll + *pitch;
-	offsetD = 6900 + *value - *roll - *pitch;
+	/*if (SUM_of_pitch >= (*pitch*10.0)){
+	SUM_of_pitch = SUM_of_pitch + *pitch;
+	}
+	if (SUM_of_roll >= (*roll*10.0)){
+	SUM_of_roll = SUM_of_roll + *roll;
+	}
+	if (SUM_of_yaw >= ((float)*yaw*10.0)){
+	SUM_of_yaw = SUM_of_yaw + *yaw;
+	}*/
+	offsetA = Offset + *value + *roll - *pitch - *yaw;
+	offsetB = Offset + *value + *roll + *pitch + *yaw;
+	offsetC = Offset + *value - *roll + *pitch - *yaw;
+	offsetD = Offset + *value - *roll - *pitch + *yaw;
+	/*offsetA = offsetA - (SUM_of_pitch/10) + (SUM_of_roll/10) + (SUM_of_yaw/10);
+	offsetB = offsetB + (SUM_of_pitch/10) + (SUM_of_roll/10) - (SUM_of_yaw/10);
+	offsetC = offsetC - (SUM_of_pitch/10) - (SUM_of_roll/10) + (SUM_of_yaw/10);
+	offsetD = offsetD - (SUM_of_pitch/10) - (SUM_of_roll/10) - (SUM_of_yaw/10);*/
 	Yaw = (float)*yaw;
 	//offsetA = offsetA + *yaw/2;
 	//offsetB = offsetB - *yaw/2;
 	//offsetC = offsetC + *yaw/2;
 	//offsetD = offsetD - *yaw/2;
-	offsetA_High = offsetA + 1500;
-	offsetB_High = offsetB + 1500;
-	offsetC_High = offsetC + 1500;
-	offsetD_High = offsetD + 1500;
-	offsetA_Low = offsetA - 1500;
-	offsetB_Low = offsetB - 1500;
-	offsetC_Low = offsetC - 1500;
-	offsetD_Low = offsetD - 1500;
+	offsetA_High = offsetA + 5000;
+	offsetB_High = offsetB + 5000;
+	offsetC_High = offsetC + 5000;
+	offsetD_High = offsetD + 5000;
+	offsetA_Low = offsetA - 5000;
+	offsetB_Low = offsetB - 5000;
+	offsetC_Low = offsetC - 5000;
+	offsetD_Low = offsetD - 5000;
 }
 void Calculate_Position()
 {
@@ -320,6 +337,22 @@ void bounds_check()
 	else if(duty_cycleD <= offsetD_Low)
 	{
 		duty_cycleD = offsetD_Low;
+	}
+	if(duty_cycleA <= Offset)
+	{
+		duty_cycleA = Offset;
+	}
+	if(duty_cycleB <= Offset)
+	{
+		duty_cycleB = Offset;
+	}
+	if(duty_cycleC <= Offset)
+	{
+		duty_cycleC = Offset;
+	}
+	if(duty_cycleD <= Offset)
+	{
+		duty_cycleD = Offset;
 	}
 }
 void init_pwm_gpio()
@@ -523,7 +556,7 @@ void TIM2_IRQHandler()
         TIM_ClearITPendingBit(TIM2, TIM_IT_Update);
         //init_pwm();
 
-        if (offsetA >= 8000){
+        if (offsetA >= 1000){
 
         //the difference between the current displacement and the setpoint is the error and P component
         if(XTotal_Rotation > 90){
@@ -570,26 +603,26 @@ void TIM2_IRQHandler()
         //We can now assemble the control output by multiplying each control component by it's associated
         //gain coefficient and summing the results
         //if ((Xerror > 2.0) || (Xerror < -2.0)){
-        ControlX_Out = (1.1 * Xerror);
+        ControlX_Out = (0.8 * Xerror);
         //} else {
         //	ControlX_Out = 0;
         //}
-        ControlX_Out = ControlX_Out + (1 * SUMof_XError);
-        ControlX_Out = ControlX_Out + (2.5 * SlopeofXError);
+        ControlX_Out = ControlX_Out + (0.5 * SUMof_XError);
+        ControlX_Out = ControlX_Out + (5 * SlopeofXError);
         //if ((Yerror > 2.0) || (Yerror < -2.0)){
-        ControlY_Out = (1.1 * Yerror);
+        ControlY_Out = (0.9 * Yerror);
         //} else {
         //	ControlY_Out = 0;
         //}
-        ControlY_Out = ControlY_Out + (1 * SUMof_YError);
-        ControlY_Out = ControlY_Out + (2.5 * SlopeofYError);
+        ControlY_Out = ControlY_Out + (0.5 * SUMof_YError);
+        ControlY_Out = ControlY_Out + (5 * SlopeofYError);
 
-        if (SUMof_ZError >= (10 * Zerror) || SUMof_ZError <= (10 * Zerror)){
+        if (SUMof_ZError >= (8 * Zerror) || SUMof_ZError <= (8 * Zerror)){
         	SUMof_ZError;
         } else {
         	SUMof_ZError = SUMof_ZError + Zerror;
         }
-        ControlZ_Out = (19 * Zerror) + (8 * SUMof_ZError);// + (1 * SlopeofZError);
+        ControlZ_Out = (1 * Zerror);// + (3 * SUMof_ZError);// + (1 * SlopeofZError);
         //ControlZ_Out = 0;
         }
         else{
@@ -608,7 +641,7 @@ void TIM2_IRQHandler()
         duty_cycleB = ControlY_Out + offsetB + ControlZ_Out;
 
 
-        //bounds_check();
+        bounds_check();
         set_pwm_width(2, pwm_period, duty_cycleD);
         set_pwm_width(1, pwm_period, duty_cycleC);
         set_pwm_width(4, pwm_period, duty_cycleB);

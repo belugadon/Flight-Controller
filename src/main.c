@@ -63,6 +63,7 @@ int IN_CH1 = 0;
 int IN_CH2 = 0;
 int IN_CH3 = 0;
 int IN_CH4 = 0;
+int RX_Watchdog = 0;
 float pitch = 0;
 float roll = 0;
 float Initial_Heading[1] = {0.0f};
@@ -98,7 +99,7 @@ int main(void)
     RCC_Configuration();
     GPIO_Configuration();
     GPIO_Configuration2();
-    USART1_Configuration_Slow();
+    //USART1_Configuration_Slow();
     //bt_uart();
     USART3_Configuration();
     //USART1_Configuration_Fast();
@@ -321,26 +322,38 @@ void Get_Control_Channels()
 	{
 	TIM_ClearITPendingBit(TIM4, TIM_IT_CC2);
 	IN_CH1 = TIM4->CCR2 - IN_CH1_OFFSET;
-	roll = (0 - (IN_CH1 / 5));
+	roll = (0 - (IN_CH1/2));
 	}
 	if (TIM_GetITStatus(TIM3, TIM_IT_CC2) != RESET)
 	{
 	TIM_ClearITPendingBit(TIM3, TIM_IT_CC2);
 	IN_CH2 = TIM3->CCR2 - IN_CH2_OFFSET;
-	pitch = IN_CH2 / 5;
+	pitch = IN_CH2/2;
 	}
 	if (TIM_GetITStatus(TIM8, TIM_IT_CC2) != RESET)
 	{
 	TIM_ClearITPendingBit(TIM8, TIM_IT_CC2);
 	IN_CH3 = TIM8->CCR2;
 	IN_CH3 = (IN_CH3 - 9161);
-	IN_CH3 = IN_CH3 * 4;
+	IN_CH3 = IN_CH3 * 5;
+	RX_Watchdog = 0;
+	}
+	else
+	{
+	RX_Watchdog = RX_Watchdog + 1;
 	}
 	if (TIM_GetITStatus(TIM15, TIM_IT_CC2) != RESET)
 	{
 	TIM_ClearITPendingBit(TIM15, TIM_IT_CC2);
 	IN_CH4 = TIM15->CCR2 - IN_CH4_OFFSET;
-	IN_CH4 = IN_CH4 / 10;
+	IN_CH4 = IN_CH4 / 2;
+	}
+	if(RX_Watchdog > 100)
+	{
+		roll = 0;
+		pitch = 0;
+		IN_CH3 = 0;
+		IN_CH4 = 0;
 	}
 }
 
