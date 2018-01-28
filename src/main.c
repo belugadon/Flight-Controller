@@ -322,13 +322,13 @@ void Get_Control_Channels()
 	{
 	TIM_ClearITPendingBit(TIM4, TIM_IT_CC2);
 	IN_CH1 = TIM4->CCR2 - IN_CH1_OFFSET;
-	roll = (0 - (IN_CH1/2));
+	roll = (0 - (IN_CH1/40));
 	}
 	if (TIM_GetITStatus(TIM3, TIM_IT_CC2) != RESET)
 	{
 	TIM_ClearITPendingBit(TIM3, TIM_IT_CC2);
 	IN_CH2 = TIM3->CCR2 - IN_CH2_OFFSET;
-	pitch = IN_CH2/2;
+	pitch = IN_CH2/40;
 	}
 	if (TIM_GetITStatus(TIM8, TIM_IT_CC2) != RESET)
 	{
@@ -346,7 +346,7 @@ void Get_Control_Channels()
 	{
 	TIM_ClearITPendingBit(TIM15, TIM_IT_CC2);
 	IN_CH4 = TIM15->CCR2 - IN_CH4_OFFSET;
-	IN_CH4 = IN_CH4 / 2;
+	IN_CH4 = IN_CH4 / 22;
 	}
 	if(RX_Watchdog > 100)
 	{
@@ -469,6 +469,7 @@ void GyroReadAngRate (float* pfData)
   }
   pfData[0] = pfData[0] - Gyro_XOffset;
   pfData[1] = pfData[1] - Gyro_YOffset;
+  pfData[2] = pfData[2] - Gyro_ZOffset;
 }
 
 void Calculate_Gyro_Drift()

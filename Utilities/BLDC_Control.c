@@ -11,6 +11,7 @@ float HeadingValue[1] = {0.0f};
 float MagBuffer2[3] = {0.0f};
 float LastHeadingValue;
 uint8_t Crossed = 1;
+int throttle = 0;
 int Offset = 1500;
 int offsetA = 7000;
 int offsetB = 7000;
@@ -236,15 +237,18 @@ void Set_Offset(int* value, float* roll, float* pitch, int* yaw)
 	if (SUM_of_yaw >= ((float)*yaw*10.0)){
 	SUM_of_yaw = SUM_of_yaw + *yaw;
 	}*/
-	offsetA = Offset + *value + *roll - *pitch - *yaw;
-	offsetB = Offset + *value + *roll + *pitch + *yaw;
-	offsetC = Offset + *value - *roll + *pitch - *yaw;
-	offsetD = Offset + *value - *roll - *pitch + *yaw;
+	throttle = *value;
+	offsetA = Offset + *value + (*roll - *pitch)*10 - *yaw;
+	offsetB = Offset + *value + (*roll + *pitch)*10 + *yaw;
+	offsetC = Offset + *value - (*roll + *pitch)*10- *yaw;
+	offsetD = Offset + *value - (*roll - *pitch)*10 + *yaw;
 	/*offsetA = offsetA - (SUM_of_pitch/10) + (SUM_of_roll/10) + (SUM_of_yaw/10);
 	offsetB = offsetB + (SUM_of_pitch/10) + (SUM_of_roll/10) - (SUM_of_yaw/10);
 	offsetC = offsetC - (SUM_of_pitch/10) - (SUM_of_roll/10) + (SUM_of_yaw/10);
 	offsetD = offsetD - (SUM_of_pitch/10) - (SUM_of_roll/10) - (SUM_of_yaw/10);*/
 	Yaw = (float)*yaw;
+	chasetheY = (*roll + *pitch);
+	chasetheX = (*roll + (0 - *pitch));
 	//offsetA = offsetA + *yaw/2;
 	//offsetB = offsetB - *yaw/2;
 	//offsetC = offsetC + *yaw/2;
@@ -556,7 +560,7 @@ void TIM2_IRQHandler()
         TIM_ClearITPendingBit(TIM2, TIM_IT_Update);
         //init_pwm();
 
-        if (offsetA >= 1000){
+        if (throttle >= 1000){
 
         //the difference between the current displacement and the setpoint is the error and P component
         if(XTotal_Rotation > 90){
@@ -576,20 +580,20 @@ void TIM2_IRQHandler()
 
         //The integral(I) component is created by multiplying the error by the period
         //and summing each individual periods error
-//        if (((duty_cycleA >= offsetA_High) || (duty_cycleC >= offsetC_High)) || ((duty_cycleA <= offsetA_Low) || (duty_cycleC <= offsetC_Low)))
-//        {
-//        	SUMof_XError = SUMof_XError;
-//        }
-//        else {
+        if (SUMof_XError>abs(Xerror*8))
+        {
+        	SUMof_XError = SUMof_XError;
+        }
+        else {
         SUMof_XError = SUMof_XError + Xerror;
-//        }
-//        if (((duty_cycleB >= offsetB_High) || (duty_cycleD >= offsetD_High))|| ((duty_cycleB <= offsetB_Low) || (duty_cycleD <= offsetD_Low)))
-//        {
-//        	SUMof_YError = SUMof_YError;
-//        }
-//        else {
+        }
+        if (SUMof_YError>abs(Yerror*8))
+        {
+        	SUMof_YError = SUMof_YError;
+        }
+        else {
         	SUMof_YError = SUMof_YError + Yerror;
-//        }
+        }
 
         //Derivative(D) Component
         SlopeofXError = (XTotal_Rotation - XLastError);
@@ -603,26 +607,27 @@ void TIM2_IRQHandler()
         //We can now assemble the control output by multiplying each control component by it's associated
         //gain coefficient and summing the results
         //if ((Xerror > 2.0) || (Xerror < -2.0)){
-        ControlX_Out = (0.8 * Xerror);
+        ControlX_Out = (7 * Xerror);
         //} else {
         //	ControlX_Out = 0;
         //}
-        ControlX_Out = ControlX_Out + (0.5 * SUMof_XError);
-        ControlX_Out = ControlX_Out + (5 * SlopeofXError);
+
+        ControlX_Out = ControlX_Out + (0.1 * SUMof_XError);
+        ControlX_Out = ControlX_Out + (15 * SlopeofXError);
         //if ((Yerror > 2.0) || (Yerror < -2.0)){
-        ControlY_Out = (0.9 * Yerror);
+        ControlY_Out = (7 * Yerror);
         //} else {
         //	ControlY_Out = 0;
         //}
-        ControlY_Out = ControlY_Out + (0.5 * SUMof_YError);
-        ControlY_Out = ControlY_Out + (5 * SlopeofYError);
+        ControlY_Out = ControlY_Out + (0.1 * SUMof_YError);
+        ControlY_Out = ControlY_Out + (15 * SlopeofYError);
 
         if (SUMof_ZError >= (8 * Zerror) || SUMof_ZError <= (8 * Zerror)){
         	SUMof_ZError;
         } else {
         	SUMof_ZError = SUMof_ZError + Zerror;
         }
-        ControlZ_Out = (1 * Zerror);// + (3 * SUMof_ZError);// + (1 * SlopeofZError);
+        ControlZ_Out = (5 * Zerror);// + (3 * SUMof_ZError);// + (1 * SlopeofZError);
         //ControlZ_Out = 0;
         }
         else{
@@ -665,13 +670,13 @@ void TIM2_IRQHandler()
  */
 
            USART1_Send('x');
-        	USART1_Send_Int((int)(XTotal_Rotation));
+        	USART1_Send_Int((int)(ControlX_Out));
             USART1_Send('-');
             USART1_Send('y');
-            USART1_Send_Int((int)(YTotal_Rotation));
+            USART1_Send_Int((int)(ControlY_Out));
             USART1_Send('-');
             USART1_Send('z');
-            USART1_Send_Int((int)(ZTotal_Rotation));
+            USART1_Send_Int((int)(ControlZ_Out));
             USART1_Send('-');
 
     }
