@@ -99,7 +99,7 @@ int main(void)
     RCC_Configuration();
     GPIO_Configuration();
     GPIO_Configuration2();
-    //USART1_Configuration_Slow();
+    USART1_Configuration_Slow();
     //bt_uart();
     USART3_Configuration();
     //USART1_Configuration_Fast();
@@ -108,16 +108,19 @@ int main(void)
     GyroConfig();
     CompassConfig();
     init_pwm_gpio();
-    int pwm_period = init_pwm(300);
+    //int pwm_period = init_pwm(300);
+    init_pwm(300);
 	PWMInput_Config();
 	Set_Offset(&IN_CH3, &roll, &pitch, &IN_CH4);
 
 	Calibrate_RX_Inputs();
 	Calculate_Gyro_Drift();
-	//get_heading(Initial_Heading);
+	Initialize_Position();
 	//get_heading(Initial_Heading);
 	//get_heading(Initial_Heading);
 	schedule_PI_interrupts();
+//	Calculate_Heading_Bias(Initial_Heading);
+//	Set_Initial_Heading(&Initial_Heading);
 	while(1)
 	{
 
@@ -126,12 +129,22 @@ int main(void)
 		//Display_Heading(HeadingValue);
 		//IN_CH4 = IN_CH4 + *Initial_Heading;
 		Set_Offset(&IN_CH3, &roll, &pitch, &IN_CH4);
-		//Adjust_Yaw(&IN_CH4);
 	    Calculate_Position();
-		//USART1_Send('\r');
 	}
 }
 
+void Calculate_Heading_Bias(float* pfData)
+{
+	float sum_of_headings = 0.0;
+	float head_reading[1] = {0.0f};
+	int i = 0;
+	for(i=0;i<10;i=i+1){
+	get_heading(head_reading);
+	sum_of_headings = sum_of_headings + head_reading[0];
+	}
+	pfData[0] = sum_of_headings/10;
+
+}
 void PWMInput_Config()
 {
 	RCC_APB1PeriphClockCmd(RCC_APB1Periph_TIM4, ENABLE);
@@ -346,7 +359,7 @@ void Get_Control_Channels()
 	{
 	TIM_ClearITPendingBit(TIM15, TIM_IT_CC2);
 	IN_CH4 = TIM15->CCR2 - IN_CH4_OFFSET;
-	IN_CH4 = IN_CH4 / 22;
+	IN_CH4 = IN_CH4 / 25;
 	}
 	if(RX_Watchdog > 100)
 	{
@@ -383,8 +396,9 @@ void get_heading(float* pfData)
 	fTiltedX = MagBuffer[0]*fCosPitch+MagBuffer[2]*fSinPitch;
     fTiltedY = MagBuffer[0]*fSinRoll*fSinPitch+MagBuffer[1]*fCosRoll-MagBuffer[1]*fSinRoll*fCosPitch;
     pfData[0] = (float) ((atan2f((float)fTiltedY,(float)fTiltedX))*RadToDeg);//*180)/PI;
-    pfData[0] = pfData[0] + 180000.0;
-    pfData[0] = pfData[0] / 10000;
+    //pfData[0] = pfData[0] + 180000.0;
+    ///pfData[0] = pfData[0] / 10;
+
     //Display_Heading(HeadingValue);
 }
 
@@ -897,8 +911,8 @@ void USART1_IRQHandler(void)
 	//while((USART1->ISR & USART_FLAG_RXNE) == (uint16_t)RESET);
 	rx = USART_ReceiveData(USART1);
 	}
-	USART_ITConfig(USART1, USART_IT_TXE, DISABLE);
-	USART_ITConfig(USART1, USART_IT_TC, DISABLE);
+	//USART_ITConfig(USART1, USART_IT_TXE, DISABLE);
+	//USART_ITConfig(USART1, USART_IT_TC, DISABLE);
 }
 void USART3_IRQHandler(void)
 {

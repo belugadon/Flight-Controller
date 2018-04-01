@@ -1,9 +1,9 @@
-#ifndef __MAIN_H
-#define __MAIN_H
+#ifndef __BLDC_CONTROL_H
+#define __BLDC_CONTROL_H
 
 #include "stm32f30x.h"
 #include "stm32f3_discovery.h"
-#include "KalmanFilter.h"
+#include "MultivariateFilter.h"
 
 
 void schedule_PI_interrupts();
@@ -20,9 +20,10 @@ int slow_init_pwm(int pwm_freq);
 void set_pwm_width(int channel, int pwm_period, uint32_t duty_cycle);
 void set_pwm_width_norm(int channel, int pwm_period, float duty_cycle);
 float gammaCorrect(int b, int c);
-float kalmanFilterY(float newAngle, float newRate,int dt);
-float kalmanFilterX(float newAngle, float newRate,int dt);
+float kalmanFilter_Init(KalmanFilterTypeDef* filter);
+float kalmanFilter(KalmanFilterTypeDef* filter);
 void Calculate_Position();
+void Initialize_Position();
 
 
 #endif

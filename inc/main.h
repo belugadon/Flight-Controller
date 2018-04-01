@@ -44,7 +44,7 @@
 #include <float.h>
 //#include "GPS.h"
 #include "BLDC_Control.h"
-#include "KalmanFilter.h"
+#include "MultivariateFilter.h"
 /* Exported types ------------------------------------------------------------*/
 /* Exported constants --------------------------------------------------------*/
 /* Exported macro ------------------------------------------------------------*/
@@ -63,6 +63,7 @@ void TimingDelay_Decrement(void);
 void Timing_Delay(uint32_t delay);
 void USART3_Configuration();
 void GPIO_Configuration2();
+void Set_Initial_Heading(float* head);
 //void Display_Heading(float value);
 
 

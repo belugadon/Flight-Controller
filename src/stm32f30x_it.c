@@ -73,6 +73,10 @@ void NMI_Handler(void)
 void HardFault_Handler(void)
 {
   /* Go to infinite loop when Hard Fault exception occurs */
+    set_pwm_width(2, 0, 0);
+    set_pwm_width(1, 0, 0);
+    set_pwm_width(4, 0, 0);
+    set_pwm_width(3, 0, 0);
   while (1)
   {
   }
