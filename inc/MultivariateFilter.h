@@ -27,6 +27,7 @@ typedef struct
 
 float kalmanFilter_Init(KalmanFilterTypeDef* filter);
 float kalmanFilter(KalmanFilterTypeDef* filter);
+float Calculate_GyroGain(float Gyro, float Accel, float max_error);
 
 
 

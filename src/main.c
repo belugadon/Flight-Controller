@@ -101,9 +101,9 @@ int main(void)
     GPIO_Configuration2();
     USART1_Configuration_Slow();
     //bt_uart();
-    USART3_Configuration();
+    //USART3_Configuration();
     //USART1_Configuration_Fast();
-    bluetooth_setup();
+    //bluetooth_setup();
    
     GyroConfig();
     CompassConfig();

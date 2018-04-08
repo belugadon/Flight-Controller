@@ -21,7 +21,7 @@ int offsetD = 7000;
 int offsetA_High, offsetB_High, offsetC_High, offsetD_High;
 int offsetA_Low, offsetB_Low, offsetC_Low, offsetD_Low;
 int duty_cycleC, duty_cycleB, duty_cycleA, duty_cycleD;
-int XSum_Of_Gyro, YSum_Of_Gyro;
+float XSum_Of_Gyro, YSum_Of_Gyro, ZSum_Of_Gyro;
 float XTotal_Rotation, YTotal_Rotation, ZTotal_Rotation;
 float XInitial_Rotation = 0.0;
 float YInitial_Rotation = 0.0;
@@ -50,7 +50,7 @@ int ms_pulses2;
 int prescaler2;
 int interrupt_frequency = 10;
 int interrupt_period_int;
-KalmanFilterTypeDef Xaxis, Yaxis;
+KalmanFilterTypeDef Xaxis, Yaxis, Zaxis;
 
 //Set up the timer and schedule interruptions
 void schedule_PI_interrupts()
@@ -274,6 +274,11 @@ void Initialize_Position()
 {
     kalmanFilter_Init(&Xaxis);
     kalmanFilter_Init(&Yaxis);
+    kalmanFilter_Init(&Zaxis);
+    Xaxis.dt = 0.05;
+    Yaxis.dt = 0.05;
+    Zaxis.dt = 0.05;
+
 	float X_Pos_Sum=0.0;
 	float Y_Pos_Sum=0.0;
 
@@ -290,20 +295,31 @@ void Initialize_Position()
 void Calculate_Position()
 {
 
+	float XGyroGain = 0, YGyroGain = 0;
 	//KalmanFilterTypeDef Xaxis, Yaxis;
     GyroReadAngRate(Buffer);//read the angular rate from the gyroscope and store in Buffer[]
     CompassReadAcc(AccBuffer2);
-    CompassReadMag(MagBuffer2);
-    Xaxis.z = AccBuffer2[0]/10;
-    Xaxis.dt = 0.05;
+    //CompassReadMag(MagBuffer2);
+
+    XSum_Of_Gyro = XSum_Of_Gyro + Buffer[0];
+    XGyroGain = Calculate_GyroGain((0-XSum_Of_Gyro/200), (AccBuffer2[0]/10), 10);
+    Xaxis.z = (XGyroGain*(0-XSum_Of_Gyro/200)) + ((1 - XGyroGain)*(AccBuffer2[0]/10));// + (0.1*(0-MagBuffer2[0]/10));
     XTotal_Rotation = kalmanFilter(&Xaxis);
-    Yaxis.z = AccBuffer2[1]/10;
-    Yaxis.dt = 0.05;
+    XSum_Of_Gyro = (0-XTotal_Rotation)*200;
+
+    YSum_Of_Gyro = YSum_Of_Gyro + Buffer[1];
+    YGyroGain = Calculate_GyroGain((0-YSum_Of_Gyro/200), (AccBuffer2[1]/10), 10);
+    Yaxis.z = (YGyroGain*(0-YSum_Of_Gyro/200)) + ((1 - YGyroGain)*(AccBuffer2[1]/10));// + (0.1*(0-MagBuffer2[1]/10));
     YTotal_Rotation = kalmanFilter(&Yaxis);
-    ZTotal_Rotation = ZTotal_Rotation + Buffer[2]/333;
-    //XTotal_Rotation = AccBuffer2[0]/10;
-    //YTotal_Rotation = AccBuffer2[1]/10;
-    //ZTotal_Rotation = MagBuffer2[2]/10;
+
+    ZSum_Of_Gyro = ZSum_Of_Gyro + Buffer[2];
+    Zaxis.z = ZSum_Of_Gyro/100;
+    ZTotal_Rotation = kalmanFilter(&Zaxis);
+    //XSum_Of_Gyro = XSum_Of_Gyro + Buffer[0];
+    //XTotal_Rotation =  (0-XSum_Of_Gyro/200);
+    //YTotal_Rotation = AccBuffer2[0]/10;
+    //ZTotal_Rotation = Xaxis.z;
+    //ZTotal_Rotation = (0-MagBuffer2[0]/10);
     //AccYangle = ((atan2f((float)AccBuffer2[1],(float)AccBuffer2[2]))*RadToDeg)/1000;//*180)/PI;
     //AccXangle = ((atan2f((float)AccBuffer2[0],(float)AccBuffer2[2]))*RadToDeg)/1000;//*180)/PI;
 
@@ -311,7 +327,7 @@ void Calculate_Position()
     //YTotal_Rotation = kalmanFilterY(AccBuffer2[1]/10, (0-Buffer[1]), 50) - YInitial_Rotation;
     //XTotal_Rotation = kalmanFilterX(AccBuffer2[0]/10, 0.001);
     //YTotal_Rotation = kalmanFilterY(AccBuffer2[1]/10, 0.001);
-    ZTotal_Rotation = ZTotal_Rotation + Buffer[2]/333;
+    //ZTotal_Rotation = ZTotal_Rotation + Buffer[2]/333;
 	//get_heading(Heading);
     //ZTotal_Rotation = kalmanFilterY(AccBuffer2[2]/10, Buffer[2], 50);
     //CompassReadMag(MagBuffer2);
