@@ -25,10 +25,18 @@ typedef struct
 	float P_11;
 } KalmanFilterTypeDef;
 
+typedef struct
+{
+	uint8_t Smoothing_Factor;
+	float Last_5_Samples[50];
+	float NewSample;
+	float SmoothedSample;
+} RollingAverageTypeDef;
+
 float kalmanFilter_Init(KalmanFilterTypeDef* filter);
 float kalmanFilter(KalmanFilterTypeDef* filter);
 float Calculate_GyroGain(float Gyro, float Accel, float max_error);
-
+float Rolling_Average(RollingAverageTypeDef* filter);
 
 
 #endif

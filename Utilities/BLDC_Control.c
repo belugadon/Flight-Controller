@@ -11,7 +11,7 @@ float Buffer[3] = {0.0f}, AccBuffer2[3] = {0.0f}, Heading[1] = {0.0f};
 float MagBuffer2[3] = {0.0f};
 float InitialHeadingValue;
 float LastHeadingValue;
-uint8_t Crossed = 1;
+uint16_t Reset_Gyro = 0;
 int throttle = 0;
 int Offset = 1500;
 int offsetA = 7000;
@@ -51,7 +51,7 @@ int prescaler2;
 int interrupt_frequency = 10;
 int interrupt_period_int;
 KalmanFilterTypeDef Xaxis, Yaxis, Zaxis;
-
+RollingAverageTypeDef Xaverage, Yaverage;
 //Set up the timer and schedule interruptions
 void schedule_PI_interrupts()
 {
@@ -275,6 +275,8 @@ void Initialize_Position()
     kalmanFilter_Init(&Xaxis);
     kalmanFilter_Init(&Yaxis);
     kalmanFilter_Init(&Zaxis);
+    Xaverage.Smoothing_Factor = 7;
+    Yaverage.Smoothing_Factor = 7;
     Xaxis.dt = 0.05;
     Yaxis.dt = 0.05;
     Zaxis.dt = 0.05;
@@ -299,22 +301,33 @@ void Calculate_Position()
 	//KalmanFilterTypeDef Xaxis, Yaxis;
     GyroReadAngRate(Buffer);//read the angular rate from the gyroscope and store in Buffer[]
     CompassReadAcc(AccBuffer2);
-    //CompassReadMag(MagBuffer2);
+    CompassReadMag(MagBuffer2);
 
-    XSum_Of_Gyro = XSum_Of_Gyro + Buffer[0];
-    XGyroGain = Calculate_GyroGain((0-XSum_Of_Gyro/200), (AccBuffer2[0]/10), 10);
-    Xaxis.z = (XGyroGain*(0-XSum_Of_Gyro/200)) + ((1 - XGyroGain)*(AccBuffer2[0]/10));// + (0.1*(0-MagBuffer2[0]/10));
+    //Xaverage.NewSample = AccBuffer2[0];
+    //AccBuffer2[0] = Rolling_Average(&Xaverage);
+    XSum_Of_Gyro = XSum_Of_Gyro - Buffer[0];
+    XGyroGain = Calculate_GyroGain((XSum_Of_Gyro/200), (AccBuffer2[0]/10), 40);
+    Xaxis.z = (XGyroGain*(XSum_Of_Gyro/200)) + ((1 - XGyroGain)*(AccBuffer2[0]/10));// + (0.1*(0-MagBuffer2[0]/10));
     XTotal_Rotation = kalmanFilter(&Xaxis);
-    XSum_Of_Gyro = (0-XTotal_Rotation)*200;
+    //XSum_Of_Gyro = (XGyroGain*XSum_Of_Gyro) + ((1 - XGyroGain)*(AccBuffer2[0]/10));
+    Xaverage.NewSample = XTotal_Rotation;
+    XTotal_Rotation = Rolling_Average(&Xaverage);
 
-    YSum_Of_Gyro = YSum_Of_Gyro + Buffer[1];
-    YGyroGain = Calculate_GyroGain((0-YSum_Of_Gyro/200), (AccBuffer2[1]/10), 10);
-    Yaxis.z = (YGyroGain*(0-YSum_Of_Gyro/200)) + ((1 - YGyroGain)*(AccBuffer2[1]/10));// + (0.1*(0-MagBuffer2[1]/10));
+    //Yaverage.NewSample = AccBuffer2[1];
+	//AccBuffer2[1] = Rolling_Average(&Yaverage);
+    YSum_Of_Gyro = YSum_Of_Gyro - Buffer[1];
+    YGyroGain = Calculate_GyroGain((YSum_Of_Gyro/200), (AccBuffer2[1]/10), 40);
+    Yaxis.z = (YGyroGain*(YSum_Of_Gyro/200)) + ((1 - YGyroGain)*(AccBuffer2[1]/10));// + (0.1*(0-MagBuffer2[1]/10));
     YTotal_Rotation = kalmanFilter(&Yaxis);
+    //YSum_Of_Gyro = (YGyroGain*YSum_Of_Gyro) + ((1 - YGyroGain)*(AccBuffer2[1]/10));
+    Yaverage.NewSample = YTotal_Rotation;
+    YTotal_Rotation = Rolling_Average(&Yaverage);
 
+    //YTotal_Rotation = (0-YTotal_Rotation);
+    //Reset_Gyro = Reset_Gyro + 1;
     ZSum_Of_Gyro = ZSum_Of_Gyro + Buffer[2];
     Zaxis.z = ZSum_Of_Gyro/100;
-    ZTotal_Rotation = kalmanFilter(&Zaxis);
+    ZTotal_Rotation = kalmanFilter(&Zaxis)/2;
     //XSum_Of_Gyro = XSum_Of_Gyro + Buffer[0];
     //XTotal_Rotation =  (0-XSum_Of_Gyro/200);
     //YTotal_Rotation = AccBuffer2[0]/10;
@@ -338,16 +351,6 @@ void Calculate_Position()
 //    XLastSlope = XTotal_Rotation;
 //    SlopeofYError = (YTotal_Rotation - YLastSlope);
 //    YLastSlope = YTotal_Rotation;
-
-//    if (((XTotal_Rotation < 5) && (XTotal_Rotation > -5)) && ((YTotal_Rotation < 5) && (YTotal_Rotation > -5))){
-//    	get_heading(Heading);
-//   	heading = (0 - (float)Heading[0]);
-//   	heading = heading + InitialHeadingValue;
-//    	ZTotal_Rotation = heading/1000;
-//    } //else {
- //   if ((XTotal_Rotation < abs(20)) && (YTotal_Rotation < abs(20))){
-//    ZTotal_Rotation = ZTotal_Rotation + Buffer[2]/333;
-//    }
 
 }
 
@@ -632,20 +635,20 @@ void TIM2_IRQHandler()
 
         //The integral(I) component is created by multiplying the error by the period
         //and summing each individual periods error
-        if (SUMof_XError>abs(Xerror*8))
-        {
-        	SUMof_XError = SUMof_XError;
-        }
-        else {
-        SUMof_XError = SUMof_XError + Xerror;
-        }
-        if (SUMof_YError>abs(Yerror*8))
-        {
-        	SUMof_YError = SUMof_YError;
-        }
-        else {
-        	SUMof_YError = SUMof_YError + Yerror;
-        }
+        //if (SUMof_XError>abs(Xerror*8))
+       // {
+        //	SUMof_XError = SUMof_XError;
+        //}
+        //else {
+        //SUMof_XError = SUMof_XError + Xerror;
+        //}
+        //if (SUMof_YError>abs(Yerror*8))
+        //{
+        //	SUMof_YError = SUMof_YError;
+        //}
+        //else {
+        //	SUMof_YError = SUMof_YError + Yerror;
+        //}
 
         //Derivative(D) Component
         SlopeofXError = (XTotal_Rotation - XLastError);
@@ -664,14 +667,14 @@ void TIM2_IRQHandler()
         //	ControlX_Out = 0;
         //}
 
-        ControlX_Out = ControlX_Out + (0.07 * SUMof_XError);
+        ControlX_Out = ControlX_Out + (0.2 * SUMof_XError);
         ControlX_Out = ControlX_Out + (7 * SlopeofXError);
         //if ((Yerror > 2.0) || (Yerror < -2.0)){
         ControlY_Out = (10 * Yerror);
         //} else {
         //	ControlY_Out = 0;
         //}
-        ControlY_Out = ControlY_Out + (0.07 * SUMof_YError);
+        ControlY_Out = ControlY_Out + (0.2 * SUMof_YError);
         ControlY_Out = ControlY_Out + (7 * SlopeofYError);
 
        // if (SUMof_ZError >= (15 * Zerror) || SUMof_ZError <= (15 * Zerror)){
@@ -689,7 +692,7 @@ void TIM2_IRQHandler()
         ControlX_Out = 0;
         ControlY_Out = 0;
         ControlZ_Out = 0;
-        //XTotal_Rotation = 0;
+       // XTotal_Rotation = 0;
         //YTotal_Rotation = 0;
         //ZTotal_Rotation = 0;
         }

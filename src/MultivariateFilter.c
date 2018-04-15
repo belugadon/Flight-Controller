@@ -8,7 +8,7 @@ float kalmanFilter_Init(KalmanFilterTypeDef* filter){
 	filter->velocity = 0;
 	filter->Q_angle  = 0.01;
 	filter->Q_bias   =  0.003;
-	filter->R_measured  =  0.03;
+	filter->R_measured  =  0.1;//0.03;
 	filter->P_00 = 0;
 	filter->P_01 = 0;
 	filter->P_10 = 0;
@@ -59,6 +59,24 @@ float Calculate_GyroGain(float Gyro, float Accel, float max_error)
 {
 	float gain = 0;
 	gain = sqrt((Gyro - Accel)*(Gyro - Accel))/max_error;
-	if (gain > 1){gain=1;}
+	if (gain > 1){
+		gain=1;
+	}else if (gain < 0.02){gain = 0.02;}
 	return gain;
+}
+
+float Rolling_Average(RollingAverageTypeDef* filter)
+{
+	int i = 0;
+	float Sum_of_Samples = 0;
+    for(i = 0; i < (filter->Smoothing_Factor-1); i=i+1){
+    filter->Last_5_Samples[i] = filter->Last_5_Samples[i+1];
+    }
+    filter->Last_5_Samples[filter->Smoothing_Factor-1] = filter->NewSample;
+    for(i = 0; i < filter->Smoothing_Factor; i=i+1){
+    	Sum_of_Samples = Sum_of_Samples + filter->Last_5_Samples[i];
+    }
+    filter->SmoothedSample = Sum_of_Samples/filter->Smoothing_Factor;
+
+    return filter->SmoothedSample;
 }
