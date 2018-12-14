@@ -2,27 +2,37 @@
 #include "math.h"
 #include "MultivariateFilter.h"
 #include "usb_lib.h"
+#include <stdbool.h>
 
 #define ABS(x)         (x < 0) ? (-x) : xS
 #define RadToDeg                   (int)  57295
+#define DegToRad                   (float) 0.01745
 
-
+float fNormAcc, fNormAcc_initial;//,fSinRoll,fCosRoll,fSinPitch,fCosPitch = 0.0f, RollAng = 0.0f, PitchAng = 0.0f;
+float altitude = 0;
 float Buffer[3] = {0.0f}, AccBuffer2[3] = {0.0f}, Heading[1] = {0.0f};
+float AccBuffer3[3] = {0.0f};
 float MagBuffer2[3] = {0.0f};
-float InitialHeadingValue;
-float LastHeadingValue;
+float Initial_ACC_Z;
+float LastZerror;
+int Air_Pressure = 0;
+int Last_Air_Pressure = 0;
+int Initial_Air_Pressure = 0;
 uint16_t Reset_Gyro = 0;
 int throttle = 0;
-int Offset = 1500;
+int throttle_stick = 0;
+int Offset = 7000;
 int offsetA = 7000;
 int offsetB = 7000;
 int offsetC = 7000;
 int offsetD = 7000;
+int throttle_limiter = 0;
 int offsetA_High, offsetB_High, offsetC_High, offsetD_High;
 int offsetA_Low, offsetB_Low, offsetC_Low, offsetD_Low;
 int duty_cycleC, duty_cycleB, duty_cycleA, duty_cycleD;
 float XSum_Of_Gyro, YSum_Of_Gyro, ZSum_Of_Gyro;
 float XTotal_Rotation, YTotal_Rotation, ZTotal_Rotation;
+float XKalman_Gyro, XKalman_Accel, YKalman_Gyro, YKalman_Accel;
 float XInitial_Rotation = 0.0;
 float YInitial_Rotation = 0.0;
 float ZInitial_Rotation = 0.0;
@@ -42,6 +52,7 @@ float XLastError = 0;
 float YLastError = 0;
 float XLastSlope = 0;
 float YLastSlope = 0;
+int Last_Throttle = 0;
 float ControlX_Out = 0;
 float ControlY_Out = 0;
 float ControlZ_Out = 0;
@@ -50,9 +61,15 @@ int ms_pulses2;
 int prescaler2;
 int interrupt_frequency = 10;
 int interrupt_period_int;
-KalmanFilterTypeDef Xaxis, Yaxis, Zaxis;
+bool XWindup_Limit = false;
+bool YWindup_Limit = false;
+KalmanFilterTypeDef XaxisGYRO, XaxisACCEL, YaxisGYRO, YaxisACCEL, Zaxis;
 RollingAverageTypeDef Xaverage, Yaverage;
 //Set up the timer and schedule interruptions
+uint8_t Motor2 = 1;
+uint8_t Motor3 = 2;
+uint8_t Motor4 = 3;
+uint8_t Motor1 = 4;
 void schedule_PI_interrupts()
 {
 
@@ -234,51 +251,34 @@ void cortexm4f_enable_fpu() {
 
 void Set_Offset(int* value, float* roll, float* pitch, int* yaw)
 {
-	//chasetheY = (*roll + *pitch);
-	//chasetheX = (*roll + (0 - *pitch));
-	/*if (SUM_of_pitch >= (*pitch*10.0)){
-	SUM_of_pitch = SUM_of_pitch + *pitch;
-	}
-	if (SUM_of_roll >= (*roll*10.0)){
-	SUM_of_roll = SUM_of_roll + *roll;
-	}
-	if (SUM_of_yaw >= ((float)*yaw*10.0)){
-	SUM_of_yaw = SUM_of_yaw + *yaw;
-	}*/
 	throttle = *value;
-	offsetA = Offset + *value;// + (*roll - *pitch)*10 - *yaw;
-	offsetB = Offset + *value;// + (*roll + *pitch)*10 + *yaw;
-	offsetC = Offset + *value;// - (*roll + *pitch)*10- *yaw;
-	offsetD = Offset + *value;// - (*roll - *pitch)*10 + *yaw;
-	/*offsetA = offsetA - (SUM_of_pitch/10) + (SUM_of_roll/10) + (SUM_of_yaw/10);
-	offsetB = offsetB + (SUM_of_pitch/10) + (SUM_of_roll/10) - (SUM_of_yaw/10);
-	offsetC = offsetC - (SUM_of_pitch/10) - (SUM_of_roll/10) + (SUM_of_yaw/10);
-	offsetD = offsetD - (SUM_of_pitch/10) - (SUM_of_roll/10) - (SUM_of_yaw/10);*/
-	Yaw = (float)*yaw;
-	chasetheY = (*roll + *pitch);
-	chasetheX = (*roll + (0 - *pitch));
-	//offsetA = offsetA + *yaw/2;
-	//offsetB = offsetB - *yaw/2;
-	//offsetC = offsetC + *yaw/2;
-	//offsetD = offsetD - *yaw/2;
-	offsetA_High = offsetA + 5000;
-	offsetB_High = offsetB + 5000;
-	offsetC_High = offsetC + 5000;
-	offsetD_High = offsetD + 5000;
-	offsetA_Low = offsetA - 5000;
-	offsetB_Low = offsetB - 5000;
-	offsetC_Low = offsetC - 5000;
-	offsetD_Low = offsetD - 5000;
+	throttle_stick = *value;
+
+	Yaw = (float)*yaw * 0.016;
+	chasetheY = (float)*roll * 0.007;
+	chasetheX = (float)(0 - *pitch) * 0.007;
+	offsetA_High = offsetA + 4000;
+	offsetB_High = offsetB + 4000;
+	offsetC_High = offsetC + 4000;
+	offsetD_High = offsetD + 4000;
+	offsetA_Low = offsetA - 4000;
+	offsetB_Low = offsetB - 4000;
+	offsetC_Low = offsetC - 4000;
+	offsetD_Low = offsetD - 4000;
 }
 void Initialize_Position()
 {
-    kalmanFilter_Init(&Xaxis);
-    kalmanFilter_Init(&Yaxis);
+    kalmanFilter_Init(&XaxisGYRO);
+    kalmanFilter_Init(&XaxisACCEL);
+    kalmanFilter_Init(&YaxisGYRO);
+    kalmanFilter_Init(&YaxisACCEL);
     kalmanFilter_Init(&Zaxis);
     Xaverage.Smoothing_Factor = 7;
     Yaverage.Smoothing_Factor = 7;
-    Xaxis.dt = 0.05;
-    Yaxis.dt = 0.05;
+    XaxisGYRO.dt = 0.05;
+    XaxisACCEL.dt = 0.05;
+    YaxisGYRO.dt = 0.05;
+    YaxisACCEL.dt = 0.05;
     Zaxis.dt = 0.05;
 
 	float X_Pos_Sum=0.0;
@@ -293,64 +293,33 @@ void Initialize_Position()
 	}
 	XInitial_Rotation = X_Pos_Sum/10;
 	YInitial_Rotation = Y_Pos_Sum/10;
+
 }
 void Calculate_Position()
 {
-
+	uint8_t i;
 	float XGyroGain = 0, YGyroGain = 0;
-	//KalmanFilterTypeDef Xaxis, Yaxis;
     GyroReadAngRate(Buffer);//read the angular rate from the gyroscope and store in Buffer[]
     CompassReadAcc(AccBuffer2);
     CompassReadMag(MagBuffer2);
 
-    //Xaverage.NewSample = AccBuffer2[0];
-    //AccBuffer2[0] = Rolling_Average(&Xaverage);
-    XSum_Of_Gyro = XSum_Of_Gyro - Buffer[0];
-    XGyroGain = Calculate_GyroGain((XSum_Of_Gyro/200), (AccBuffer2[0]/10), 40);
-    Xaxis.z = (XGyroGain*(XSum_Of_Gyro/200)) + ((1 - XGyroGain)*(AccBuffer2[0]/10));// + (0.1*(0-MagBuffer2[0]/10));
-    XTotal_Rotation = kalmanFilter(&Xaxis);
-    //XSum_Of_Gyro = (XGyroGain*XSum_Of_Gyro) + ((1 - XGyroGain)*(AccBuffer2[0]/10));
-    Xaverage.NewSample = XTotal_Rotation;
-    XTotal_Rotation = Rolling_Average(&Xaverage);
+    XSum_Of_Gyro = (0.02*XKalman_Accel+0.98*XKalman_Gyro) - Buffer[0]/40;
+    XaxisGYRO.z = (XSum_Of_Gyro);
+    XKalman_Gyro = kalmanFilter(&XaxisGYRO);
+    XaxisACCEL.z = (AccBuffer2[0]/20);
+    XKalman_Accel = kalmanFilter(&XaxisACCEL);
+    XTotal_Rotation = (0.98 * XKalman_Gyro) + (0.02 * XKalman_Accel);
 
-    //Yaverage.NewSample = AccBuffer2[1];
-	//AccBuffer2[1] = Rolling_Average(&Yaverage);
-    YSum_Of_Gyro = YSum_Of_Gyro - Buffer[1];
-    YGyroGain = Calculate_GyroGain((YSum_Of_Gyro/200), (AccBuffer2[1]/10), 40);
-    Yaxis.z = (YGyroGain*(YSum_Of_Gyro/200)) + ((1 - YGyroGain)*(AccBuffer2[1]/10));// + (0.1*(0-MagBuffer2[1]/10));
-    YTotal_Rotation = kalmanFilter(&Yaxis);
-    //YSum_Of_Gyro = (YGyroGain*YSum_Of_Gyro) + ((1 - YGyroGain)*(AccBuffer2[1]/10));
-    Yaverage.NewSample = YTotal_Rotation;
-    YTotal_Rotation = Rolling_Average(&Yaverage);
+    YSum_Of_Gyro = (0.02*YKalman_Accel+0.98*YKalman_Gyro) - Buffer[1]/40;
+    YaxisGYRO.z = (YSum_Of_Gyro);
+    YKalman_Gyro = kalmanFilter(&YaxisGYRO);
+    YaxisACCEL.z = (AccBuffer2[1]/20);
+    YKalman_Accel = kalmanFilter(&YaxisACCEL);
+    YTotal_Rotation = (0.98 * YKalman_Gyro) + (0.02 * YKalman_Accel);
 
-    //YTotal_Rotation = (0-YTotal_Rotation);
-    //Reset_Gyro = Reset_Gyro + 1;
-    ZSum_Of_Gyro = ZSum_Of_Gyro + Buffer[2];
-    Zaxis.z = ZSum_Of_Gyro/100;
-    ZTotal_Rotation = kalmanFilter(&Zaxis)/2;
-    //XSum_Of_Gyro = XSum_Of_Gyro + Buffer[0];
-    //XTotal_Rotation =  (0-XSum_Of_Gyro/200);
-    //YTotal_Rotation = AccBuffer2[0]/10;
-    //ZTotal_Rotation = Xaxis.z;
-    //ZTotal_Rotation = (0-MagBuffer2[0]/10);
-    //AccYangle = ((atan2f((float)AccBuffer2[1],(float)AccBuffer2[2]))*RadToDeg)/1000;//*180)/PI;
-    //AccXangle = ((atan2f((float)AccBuffer2[0],(float)AccBuffer2[2]))*RadToDeg)/1000;//*180)/PI;
-
-    //XTotal_Rotation = kalmanFilterX(AccBuffer2[0]/10, (0-Buffer[0]), 50) - XInitial_Rotation;
-    //YTotal_Rotation = kalmanFilterY(AccBuffer2[1]/10, (0-Buffer[1]), 50) - YInitial_Rotation;
-    //XTotal_Rotation = kalmanFilterX(AccBuffer2[0]/10, 0.001);
-    //YTotal_Rotation = kalmanFilterY(AccBuffer2[1]/10, 0.001);
-    //ZTotal_Rotation = ZTotal_Rotation + Buffer[2]/333;
-	//get_heading(Heading);
-    //ZTotal_Rotation = kalmanFilterY(AccBuffer2[2]/10, Buffer[2], 50);
-    //CompassReadMag(MagBuffer2);
-//    XTotal_Rotation = AccBuffer2[0]/10;
-//    YTotal_Rotation = AccBuffer2[1]/10;
-//    ZTotal_Rotation = Heading[0]/1000;
-//    SlopeofXError = (XTotal_Rotation - XLastSlope);
-//    XLastSlope = XTotal_Rotation;
-//    SlopeofYError = (YTotal_Rotation - YLastSlope);
-//    YLastSlope = YTotal_Rotation;
+    ZSum_Of_Gyro = ZSum_Of_Gyro + Buffer[2]/100;
+    Zaxis.z = ZSum_Of_Gyro;
+    ZTotal_Rotation = kalmanFilter(&Zaxis);
 
 }
 
@@ -368,50 +337,62 @@ void bounds_check()
 	if(duty_cycleC >= offsetC_High)
 	{
 		duty_cycleC = offsetC_High;
+		XWindup_Limit = true;
 	}
 	else if(duty_cycleC <= offsetC_Low)
 	{
 		duty_cycleC = offsetC_Low;
-	}
+		XWindup_Limit = true;
+	} else {XWindup_Limit = false;}
 	if(duty_cycleB >= offsetB_High)
 	{
 		duty_cycleB = offsetB_High;
+		YWindup_Limit = true;
 	}
 	else if(duty_cycleB <= offsetB_Low)
 	{
 		duty_cycleB = offsetB_Low;
-	}
+		YWindup_Limit = true;
+	}else {YWindup_Limit = false;}
 	if(duty_cycleA >= offsetA_High)
 	{
 		duty_cycleA = offsetA_High;
+		XWindup_Limit = true;
 	}
 	else if(duty_cycleA <= offsetA_Low)
 	{
 		duty_cycleA = offsetA_Low;
-	}
+		XWindup_Limit = true;
+	}else {XWindup_Limit = false;}
 	if(duty_cycleD >= offsetD_High)
 	{
 		duty_cycleD = offsetD_High;
+		YWindup_Limit = true;
 	}
 	else if(duty_cycleD <= offsetD_Low)
 	{
 		duty_cycleD = offsetD_Low;
-	}
+		YWindup_Limit = true;
+	}else {YWindup_Limit = false;}
 	if(duty_cycleA <= Offset)
 	{
 		duty_cycleA = Offset;
+		XWindup_Limit = true;
 	}
 	if(duty_cycleB <= Offset)
 	{
 		duty_cycleB = Offset;
+		YWindup_Limit = true;
 	}
 	if(duty_cycleC <= Offset)
 	{
 		duty_cycleC = Offset;
+		XWindup_Limit = true;
 	}
 	if(duty_cycleD <= Offset)
 	{
 		duty_cycleD = Offset;
+		YWindup_Limit = true;
 	}
 }
 void init_pwm_gpio()
@@ -521,7 +502,7 @@ int slow_init_pwm(int pwm_freq)
 	TIM_TimeBaseInitTypeDef  TIM_TimeBaseStructure;
 	TIM_TimeBaseStructInit(& TIM_TimeBaseStructure);
 	TIM_TimeBaseStructure.TIM_Prescaler = prescaler;
-	TIM_TimeBaseStructure.TIM_Period = 2857;
+	TIM_TimeBaseStructure.TIM_Period = 1857;
 	TIM_TimeBaseStructure.TIM_ClockDivision = 0;
 	TIM_TimeBaseStructure.TIM_CounterMode = TIM_CounterMode_Up ;
 	TIM_TimeBaseInit(TIM1, &TIM_TimeBaseStructure);
@@ -612,10 +593,17 @@ void TIM2_IRQHandler()
     	float SlopeofXError = 0.0;
     	float SlopeofYError = 0.0;
     	float SlopeofZError = 0.0;
-        TIM_ClearITPendingBit(TIM2, TIM_IT_Update);
-        //init_pwm();
+    	float XGain_Scale = 0;
+    	float YGain_Scale = 0;
 
-        if (throttle >= 1000){
+        TIM_ClearITPendingBit(TIM2, TIM_IT_Update);
+
+        if ((Last_Throttle - throttle) > 40){
+        	throttle = Last_Throttle - 10;
+        }
+
+        if (throttle_stick >= 500){
+
 
         //the difference between the current displacement and the setpoint is the error and P component
         if(XTotal_Rotation > 90){
@@ -631,98 +619,101 @@ void TIM2_IRQHandler()
 
         Xerror = chasetheX - XTotal_Rotation;
         Yerror = chasetheY - YTotal_Rotation;
-        Zerror = Yaw + ZTotal_Rotation;
+        Zerror = (0 - Yaw) + (0 - Buffer[2]);//ZTotal_Rotation/10;
+
+
+        if (XTotal_Rotation > 0){
+    	XGain_Scale = sin(XTotal_Rotation * DegToRad);
+        } else {
+        XGain_Scale = sin((0 - XTotal_Rotation) * DegToRad);
+        }
+        if (YTotal_Rotation > 0){
+    	YGain_Scale = sin(YTotal_Rotation * DegToRad);
+        } else {
+        YGain_Scale = sin((0 - YTotal_Rotation) * DegToRad);
+        }
 
         //The integral(I) component is created by multiplying the error by the period
         //and summing each individual periods error
-        //if (SUMof_XError>abs(Xerror*8))
-       // {
-        //	SUMof_XError = SUMof_XError;
-        //}
-        //else {
-        //SUMof_XError = SUMof_XError + Xerror;
-        //}
-        //if (SUMof_YError>abs(Yerror*8))
-        //{
-        //	SUMof_YError = SUMof_YError;
-        //}
-        //else {
-        //	SUMof_YError = SUMof_YError + Yerror;
-        //}
+        if ((Xerror > 1) | (Xerror < (0 - 1)))
+        {
+        	SUMof_XError = SUMof_XError + Xerror;
+        }
+        if ((Yerror > 1) | (Yerror < (0 - 1)))
+        {
+        	SUMof_YError = SUMof_YError + Yerror;
+        }
+
+        if ((Yaw > 0.75)|(Yaw < (0-0.75)))
+        	SUMof_ZError = SUMof_ZError + Zerror;
+        else {
+        	SUMof_ZError = 0;
+        }
+
 
         //Derivative(D) Component
         SlopeofXError = (XTotal_Rotation - XLastError);
         XLastError = XTotal_Rotation;
         SlopeofYError = (YTotal_Rotation - YLastError);
         YLastError = YTotal_Rotation;
-        SlopeofZError = ZTotal_Rotation - LastHeadingValue;
-        LastHeadingValue = ZTotal_Rotation;
+        SlopeofZError = Buffer[2]/40;
+
 
 
         //We can now assemble the control output by multiplying each control component by it's associated
         //gain coefficient and summing the results
-        //if ((Xerror > 2.0) || (Xerror < -2.0)){
-        ControlX_Out = (10 * Xerror);
-        //} else {
-        //	ControlX_Out = 0;
-        //}
 
-        ControlX_Out = ControlX_Out + (0.2 * SUMof_XError);
-        ControlX_Out = ControlX_Out + (7 * SlopeofXError);
-        //if ((Yerror > 2.0) || (Yerror < -2.0)){
-        ControlY_Out = (10 * Yerror);
-        //} else {
-        //	ControlY_Out = 0;
-        //}
-        ControlY_Out = ControlY_Out + (0.2 * SUMof_YError);
-        ControlY_Out = ControlY_Out + (7 * SlopeofYError);
+    	ControlX_Out = ((6 +(XGain_Scale * 14)) * Xerror);
+    	ControlX_Out = ControlX_Out + ((0.5 +(XGain_Scale * 1)) * SUMof_XError);
+    	ControlX_Out = ControlX_Out + ((2 +(XGain_Scale * 2.5)) * Buffer[0]);
 
-       // if (SUMof_ZError >= (15 * Zerror) || SUMof_ZError <= (15 * Zerror)){
-      //  	SUMof_ZError;
-      //  } else {
-        	SUMof_ZError = SUMof_ZError + Zerror;
-       // }
-        ControlZ_Out = (9 * Zerror) + (SUMof_ZError/6) + (1 * SlopeofZError);
-        //ControlZ_Out = 0;
+    	ControlY_Out = ((6 +(YGain_Scale * 14)) * Yerror);
+    	ControlY_Out = ControlY_Out + ((0.5 +(YGain_Scale * 1)) * SUMof_YError);
+    	ControlY_Out = ControlY_Out + ((2 +(YGain_Scale * 2.5)) * Buffer[1]);
+
+        ControlZ_Out = (10 * Zerror);// + (1.5 * SUMof_ZError);// + (SlopeofZError);
         }
         else{
+        throttle = 0;
         SUMof_XError = 0;
         SUMof_YError = 0;
         SUMof_ZError = 0;
         ControlX_Out = 0;
         ControlY_Out = 0;
         ControlZ_Out = 0;
-       // XTotal_Rotation = 0;
-        //YTotal_Rotation = 0;
-        //ZTotal_Rotation = 0;
+        XTotal_Rotation = 0;
+        YTotal_Rotation = 0;
+        ZTotal_Rotation = 0;
+        XSum_Of_Gyro = 0;
+        YSum_Of_Gyro = 0;
+        ZSum_Of_Gyro = 0;
         }
+    	offsetA = Offset + throttle;
+    	offsetB = Offset + throttle;
+    	offsetC = Offset + throttle;
+    	offsetD = Offset + throttle;
 
-
-        duty_cycleC = 0 - (ControlX_Out) + offsetC - ControlZ_Out;
-        duty_cycleA = ControlX_Out + offsetA - ControlZ_Out;
-        duty_cycleD = 0 - (ControlY_Out) + offsetD + ControlZ_Out;
-        duty_cycleB = ControlY_Out + offsetB + ControlZ_Out;
-        //duty_cycleC = 0 + offsetC - ControlZ_Out;
-        //duty_cycleA = offsetA - ControlZ_Out;
-        //duty_cycleD = 0 + offsetD + ControlZ_Out;
-        //duty_cycleB = offsetB + ControlZ_Out;
+        duty_cycleC = (0 - ControlX_Out) + ControlY_Out + offsetC - ControlZ_Out;
+        duty_cycleA = ControlX_Out + (0 - ControlY_Out) + offsetA - ControlZ_Out;
+        duty_cycleD = (0 - ControlX_Out) + (0 - ControlY_Out)+ offsetD + ControlZ_Out;
+        duty_cycleB = ControlX_Out + ControlY_Out + offsetB + ControlZ_Out;
 
 
         bounds_check();
-        set_pwm_width(2, pwm_period, duty_cycleD);
-        set_pwm_width(1, pwm_period, duty_cycleC);
-        set_pwm_width(4, pwm_period, duty_cycleB);
-        set_pwm_width(3, pwm_period, duty_cycleA);
-
+        set_pwm_width(Motor2, pwm_period, duty_cycleD);
+        set_pwm_width(Motor1, pwm_period, duty_cycleC);
+        set_pwm_width(Motor4, pwm_period, duty_cycleB);
+        set_pwm_width(Motor3, pwm_period, duty_cycleA);
+    	Last_Throttle = throttle;
         /*
             USART1_Send('X');
             USART1_Send(':');
             USART1_Send(' ');
-            Display_Axis(AccXangle);
+            Display_Axis(XTotal_Rotation);
             USART1_Send('Y');
             USART1_Send(':');
             USART1_Send(' ');
-            Display_Axis(AccYangle);
+            Display_Axis(YTotal_Rotation);
             USART1_Send('z');
             USART1_Send(':');
             USART1_Send(' ');
@@ -731,15 +722,18 @@ void TIM2_IRQHandler()
             USART1_Send('\r');
  */
 
-           USART1_Send('x');
+    /*       USART1_Send('x');
+        	//USART1_Send_Int((int)(MagBuffer2[0]/10));
         	USART1_Send_Int((int)(XTotal_Rotation));
             USART1_Send('-');
             USART1_Send('y');
-            USART1_Send_Int((int)(YTotal_Rotation));
+            //USART1_Send_Int((int)(YGain_Scale*100));
+        	USART1_Send_Int((int)(YTotal_Rotation));
             USART1_Send('-');
             USART1_Send('z');
             USART1_Send_Int((int)(ZTotal_Rotation));
             USART1_Send('-');
+*/
 
     }
 }

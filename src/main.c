@@ -57,6 +57,7 @@
 __IO uint32_t TimingDelay = 0;
 __IO uint32_t UserButtonPressed = 0;
 
+uint32_t calibration_value;
 float MagBuffer[3] = {0.0f}, AccBuffer[3] = {0.0f}, Buff[3] = {0.0f};
 int offset;
 int IN_CH1 = 0;
@@ -99,16 +100,13 @@ int main(void)
     RCC_Configuration();
     GPIO_Configuration();
     GPIO_Configuration2();
+    Config_ADC();
     USART1_Configuration_Slow();
-    //bt_uart();
-    //USART3_Configuration();
-    //USART1_Configuration_Fast();
-    //bluetooth_setup();
+
    
     GyroConfig();
     CompassConfig();
     init_pwm_gpio();
-    //int pwm_period = init_pwm(300);
     init_pwm(300);
 	PWMInput_Config();
 	Set_Offset(&IN_CH3, &roll, &pitch, &IN_CH4);
@@ -116,18 +114,11 @@ int main(void)
 	Calibrate_RX_Inputs();
 	Calculate_Gyro_Drift();
 	Initialize_Position();
-	//get_heading(Initial_Heading);
-	//get_heading(Initial_Heading);
 	schedule_PI_interrupts();
-//	Calculate_Heading_Bias(Initial_Heading);
-//	Set_Initial_Heading(&Initial_Heading);
 	while(1)
 	{
 
 		Get_Control_Channels();
-		//get_heading(HeadingValue);
-		//Display_Heading(HeadingValue);
-		//IN_CH4 = IN_CH4 + *Initial_Heading;
 		Set_Offset(&IN_CH3, &roll, &pitch, &IN_CH4);
 	    Calculate_Position();
 	}
@@ -287,7 +278,7 @@ void Calibrate_RX_Inputs()
 	int Sample = 0;
 	int Sum = 0;
 	int i = 0;
-	for(i=0;i<10;i++){
+	for(i=0;i<100;i++){
 	while((Sample == 0) || (Sample >= 15000)){
 		if (TIM_GetITStatus(TIM4, TIM_IT_CC2) != RESET)
 		{
@@ -298,9 +289,9 @@ void Calibrate_RX_Inputs()
 	}
 	Sample = 0;
 	}
-	IN_CH1_OFFSET = Sum/10;
+	IN_CH1_OFFSET = Sum/100;
 	Sum = 0;
-	for(i=0;i<10;i++){
+	for(i=0;i<100;i++){
 	while((Sample == 0) || (Sample >= 15000))
 	{
 		if (TIM_GetITStatus(TIM3, TIM_IT_CC2) != RESET)
@@ -312,7 +303,7 @@ void Calibrate_RX_Inputs()
 	}
 	Sample = 0;
 	}
-	IN_CH2_OFFSET = Sum/10;
+	IN_CH2_OFFSET = Sum/100;
 	Sum = 0;
 	for(i=0;i<10;i++){
 	while((Sample == 0) || (Sample >= 20000))
@@ -335,20 +326,20 @@ void Get_Control_Channels()
 	{
 	TIM_ClearITPendingBit(TIM4, TIM_IT_CC2);
 	IN_CH1 = TIM4->CCR2 - IN_CH1_OFFSET;
-	roll = (0 - (IN_CH1/40));
+	roll = IN_CH1;//(IN_CH1/40);
 	}
 	if (TIM_GetITStatus(TIM3, TIM_IT_CC2) != RESET)
 	{
 	TIM_ClearITPendingBit(TIM3, TIM_IT_CC2);
 	IN_CH2 = TIM3->CCR2 - IN_CH2_OFFSET;
-	pitch = IN_CH2/40;
+	pitch = (0 - IN_CH2);//(0 - (IN_CH2/40));
 	}
 	if (TIM_GetITStatus(TIM8, TIM_IT_CC2) != RESET)
 	{
 	TIM_ClearITPendingBit(TIM8, TIM_IT_CC2);
 	IN_CH3 = TIM8->CCR2;
 	IN_CH3 = (IN_CH3 - 9161);
-	IN_CH3 = IN_CH3 * 5;
+	IN_CH3 = IN_CH3 * 1.75;
 	RX_Watchdog = 0;
 	}
 	else
@@ -359,7 +350,7 @@ void Get_Control_Channels()
 	{
 	TIM_ClearITPendingBit(TIM15, TIM_IT_CC2);
 	IN_CH4 = TIM15->CCR2 - IN_CH4_OFFSET;
-	IN_CH4 = IN_CH4 / 25;
+	//IN_CH4 = IN_CH4 / 25;
 	}
 	if(RX_Watchdog > 100)
 	{
@@ -684,6 +675,107 @@ void CompassReadMag (float* pfData)
   pfData[2]=(float)((int16_t)(((uint16_t)buffer[4] << 8) + buffer[5])*1000)/Magn_Sensitivity_Z;
 }
 
+void Config_ADC(uint16_t GPIO_PIN, uint16_t ADC_Channel)
+{
+	uint32_t timedelay = 100;
+    ADC_InitTypeDef       ADC_InitStructure;
+    ADC_CommonInitTypeDef ADC_CommonInitStructure;
+    GPIO_InitTypeDef      GPIO_InitStructure;
+
+    // Configure the ADC clock
+    RCC_ADCCLKConfig( RCC_ADC12PLLCLK_Div2 );
+
+    // Enable ADC1 clock
+    RCC_AHBPeriphClockCmd( RCC_AHBPeriph_ADC12, ENABLE );
+
+    // ADC Channel configuration
+    // GPIOC Periph clock enable
+    RCC_AHBPeriphClockCmd( RCC_AHBPeriph_GPIOC, ENABLE );
+
+    // Configure ADC Channel7 as analog input
+    GPIO_InitStructure.GPIO_Pin = GPIO_PIN ;
+    GPIO_InitStructure.GPIO_Mode = GPIO_Mode_AN;
+    GPIO_InitStructure.GPIO_PuPd = GPIO_PuPd_NOPULL ;
+    GPIO_Init( GPIOC, &GPIO_InitStructure );
+
+    ADC_StructInit( &ADC_InitStructure );
+
+    // Calibration procedure
+    ADC_VoltageRegulatorCmd( ADC1, ENABLE );
+
+    // Insert delay equal to 10 µs
+    //TaskDelay(5);
+    Timing_Delay(timedelay);
+
+    ADC_CommonInitStructure.ADC_Mode = ADC_Mode_Independent;
+    ADC_CommonInitStructure.ADC_Clock = ADC_Clock_SynClkModeDiv4; //ADC_Clock_AsynClkMode;
+    ADC_CommonInitStructure.ADC_DMAAccessMode = ADC_DMAAccessMode_Disabled;
+    ADC_CommonInitStructure.ADC_DMAMode = ADC_DMAMode_OneShot;
+    ADC_CommonInitStructure.ADC_TwoSamplingDelay = 0;
+    ADC_CommonInit( ADC1, &ADC_CommonInitStructure );
+
+    ADC_SelectCalibrationMode( ADC1, ADC_CalibrationMode_Single );
+    ADC_StartCalibration( ADC1 );
+
+    while ( ADC_GetCalibrationStatus( ADC1 ) != RESET );
+    calibration_value = ADC_GetCalibrationValue( ADC1 );
+
+    ADC_InitStructure.ADC_ContinuousConvMode = ADC_ContinuousConvMode_Disable;
+    ADC_InitStructure.ADC_Resolution = ADC_Resolution_12b;
+    ADC_InitStructure.ADC_ExternalTrigConvEvent = ADC_ExternalTrigConvEvent_0;
+    ADC_InitStructure.ADC_ExternalTrigEventEdge = ADC_ExternalTrigEventEdge_None;
+    ADC_InitStructure.ADC_DataAlign = ADC_DataAlign_Right;
+    ADC_InitStructure.ADC_OverrunMode = ADC_OverrunMode_Disable;
+    ADC_InitStructure.ADC_AutoInjMode = ADC_AutoInjec_Disable;
+    ADC_InitStructure.ADC_NbrOfRegChannel = 1;
+    ADC_Init( ADC1, &ADC_InitStructure );
+
+    // ADC1 regular channel configuration
+    ADC_RegularChannelConfig( ADC1, ADC_Channel, 1, ADC_SampleTime_7Cycles5 );
+
+    // Enable ADC1
+    ADC_Cmd( ADC1, ENABLE );
+
+    // wait for ADRDY
+    while( !ADC_GetFlagStatus( ADC1, ADC_FLAG_RDY ) );
+
+    // Start ADC1 Software Conversion
+    ADC_StartConversion( ADC1 );
+}
+uint16_t Get_Voltage()
+{
+	 	uint16_t  ADC1ConvertedValue = 0;
+
+	    // Test EOC flag
+	    while ( ADC_GetFlagStatus( ADC1, ADC_FLAG_EOC ) == RESET );
+
+	    // Get ADC1 converted data
+	    ADC1ConvertedValue = ADC_GetConversionValue( ADC1 );
+
+	    // Compute the voltage (3.3V @ 12bit resolution)
+	    //ADC1ConvertedValue = ( ADC1ConvertedValue * 3300 ) / 0xFFF;
+	    //ADC1ConvertedValue = ( ADC1ConvertedValue * 3000 ) / 0xFFF;
+
+	    ADC_StopConversion(ADC1);
+	    //ADC_DisableCmd(ADC1);
+	    ADC_DeInit(ADC1);
+
+	    return ADC1ConvertedValue;
+}
+uint32_t Get_Baro()
+{
+	__IO uint32_t Pressure = 0;
+	__IO uint32_t Voltage = 0;
+	Config_ADC(GPIO_Pin_0, ADC_Channel_6);
+	Voltage = Get_Voltage();
+
+	//Voltage = Voltage * 10000;
+	//Pressure = Voltage / 0.036278;//0.68*Vdd*a
+
+	//Pressure = Pressure + 306157000;//-a/b
+
+	return Voltage;
+}
 /**
   * @brief  Decrements the TimingDelay variable.
   * @param  None

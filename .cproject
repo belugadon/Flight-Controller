@@ -21,7 +21,7 @@
 							<option id="fr.ac6.managedbuild.option.gnu.cross.board.41555934" name="Board" superClass="fr.ac6.managedbuild.option.gnu.cross.board" useByScannerDiscovery="false" value="STM32F3DISCOVERY" valueType="string"/>
 							<option id="fr.ac6.managedbuild.option.gnu.cross.fpu.130762412" name="Floating point hardware" superClass="fr.ac6.managedbuild.option.gnu.cross.fpu" useByScannerDiscovery="false" value="fr.ac6.managedbuild.option.gnu.cross.fpu.no" valueType="enumerated"/>
 							<option id="fr.ac6.managedbuild.option.gnu.cross.floatabi.488997782" name="Floating-point ABI" superClass="fr.ac6.managedbuild.option.gnu.cross.floatabi" useByScannerDiscovery="false" value="fr.ac6.managedbuild.option.gnu.cross.floatabi.soft" valueType="enumerated"/>
-							<option id="fr.ac6.managedbuild.option.gnu.cross.path.1122975682" superClass="fr.ac6.managedbuild.option.gnu.cross.path" useByScannerDiscovery="false" value="C:\Program Files (x86)\GNU Tools ARM Embedded\5.4 2016q3\bin" valueType="string"/>
+							<option id="fr.ac6.managedbuild.option.gnu.cross.path.1122975682" name="Path" superClass="fr.ac6.managedbuild.option.gnu.cross.path" useByScannerDiscovery="false" value="C:\Program Files (x86)\GNU Tools ARM Embedded\5.4 2016q3\bin" valueType="string"/>
 							<targetPlatform archList="all" binaryParser="org.eclipse.cdt.core.ELF" id="fr.ac6.managedbuild.targetPlatform.gnu.cross.1780180723" isAbstract="false" osList="all" superClass="fr.ac6.managedbuild.targetPlatform.gnu.cross"/>
 							<builder buildPath="${workspace_loc:/Flight Controller}/Debug" id="fr.ac6.managedbuild.builder.gnu.cross.619843179" keepEnvironmentInBuildfile="false" managedBuildOn="true" name="Gnu Make Builder" superClass="fr.ac6.managedbuild.builder.gnu.cross"/>
 							<tool id="fr.ac6.managedbuild.tool.gnu.cross.c.compiler.1021100512" name="MCU GCC Compiler" superClass="fr.ac6.managedbuild.tool.gnu.cross.c.compiler">
@@ -47,8 +47,8 @@
 									<listOptionValue builtIn="false" value="USE_STDPERIPH_DRIVER"/>
 									<listOptionValue builtIn="false" value="STM32F303xC"/>
 								</option>
-								<option id="gnu.c.compiler.option.dialect.std.1453908711" superClass="gnu.c.compiler.option.dialect.std" useByScannerDiscovery="true" value="gnu.c.compiler.dialect.default" valueType="enumerated"/>
-								<option id="fr.ac6.managedbuild.tool.gnu.cross.c.compiler.ffunction.1630601867" superClass="fr.ac6.managedbuild.tool.gnu.cross.c.compiler.ffunction" useByScannerDiscovery="false" value="false" valueType="boolean"/>
+								<option id="gnu.c.compiler.option.dialect.std.1453908711" name="Language standard" superClass="gnu.c.compiler.option.dialect.std" useByScannerDiscovery="true" value="gnu.c.compiler.dialect.default" valueType="enumerated"/>
+								<option id="fr.ac6.managedbuild.tool.gnu.cross.c.compiler.ffunction.1630601867" name="Place the function in their own section (-ffunction-sections)" superClass="fr.ac6.managedbuild.tool.gnu.cross.c.compiler.ffunction" useByScannerDiscovery="false" value="false" valueType="boolean"/>
 								<inputType id="fr.ac6.managedbuild.tool.gnu.cross.c.compiler.input.c.1730524050" superClass="fr.ac6.managedbuild.tool.gnu.cross.c.compiler.input.c"/>
 								<inputType id="fr.ac6.managedbuild.tool.gnu.cross.c.compiler.input.s.938786984" superClass="fr.ac6.managedbuild.tool.gnu.cross.c.compiler.input.s"/>
 							</tool>
