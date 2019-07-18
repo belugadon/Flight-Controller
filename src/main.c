@@ -1002,6 +1002,7 @@ void USART1_IRQHandler(void)
 	if(USART_GetITStatus(USART1, USART_IT_RXNE) != RESET){
 	//while((USART1->ISR & USART_FLAG_RXNE) == (uint16_t)RESET);
 	rx = USART_ReceiveData(USART1);
+	USART1_Send(rx);
 	}
 	//USART_ITConfig(USART1, USART_IT_TXE, DISABLE);
 	//USART_ITConfig(USART1, USART_IT_TC, DISABLE);
